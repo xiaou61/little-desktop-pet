@@ -1,0 +1,426 @@
+:root {
+  font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  color: #202523;
+  background: #f4f6f5;
+  font-synthesis: none;
+  letter-spacing: 0;
+}
+
+* {
+  box-sizing: border-box;
+  letter-spacing: 0;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  min-width: 320px;
+  height: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+}
+
+button:focus-visible {
+  outline: 3px solid #126f64;
+  outline-offset: 2px;
+}
+
+.dashboard {
+  display: grid;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+  width: 100%;
+  height: 100vh;
+  min-height: 500px;
+  padding: 20px 22px 18px;
+  overflow: hidden;
+  background: #f4f6f5;
+}
+
+.titlebar,
+.date-toolbar,
+.summary,
+.section-heading,
+.row-main,
+.tracker-state {
+  display: flex;
+  align-items: center;
+}
+
+.titlebar {
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0 0 2px;
+  color: #5f6965;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  max-width: 300px;
+  margin-bottom: 0;
+  overflow: hidden;
+  color: #18201d;
+  font-size: 20px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+h2 {
+  margin-bottom: 0;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.icon-button {
+  display: inline-grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #34413c;
+  background: transparent;
+  cursor: pointer;
+}
+
+.icon-button span {
+  display: block;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.icon-button:hover:not(:disabled),
+.today-button:hover:not(:disabled) {
+  border-color: #c8cfcc;
+  background: #e7ebe9;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.38;
+}
+
+.date-toolbar {
+  justify-content: space-between;
+  min-height: 50px;
+  margin-top: 8px;
+  border-bottom: 1px solid #d9dfdc;
+}
+
+.today-button {
+  min-width: 92px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #c8cfcc;
+  border-radius: 6px;
+  color: #2f3a36;
+  background: #ffffff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.summary {
+  justify-content: space-between;
+  min-height: 92px;
+  gap: 16px;
+  border-bottom: 1px solid #d9dfdc;
+}
+
+.summary-label {
+  display: block;
+  margin-bottom: 4px;
+  color: #68716d;
+  font-size: 12px;
+}
+
+.summary strong {
+  display: block;
+  min-height: 35px;
+  font-size: 28px;
+  line-height: 1.25;
+}
+
+.tracker-state {
+  flex: 0 0 auto;
+  gap: 7px;
+  color: #2f3a36;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.state-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #78827e;
+}
+
+.tracker-state[data-state="recording"] .state-dot {
+  background: #16806f;
+}
+
+.tracker-state[data-state="idle"] .state-dot {
+  background: #d18a24;
+}
+
+.tracker-state[data-state="error"] .state-dot {
+  background: #c64f3d;
+}
+
+.status-banner {
+  min-height: 38px;
+  margin: 0 -22px;
+  padding: 10px 22px;
+  color: #65480e;
+  background: #fff3d8;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.error-banner {
+  color: #782f25;
+  background: #fbe7e2;
+}
+
+.usage-list {
+  display: grid;
+  grid-template-rows: 46px minmax(0, 1fr);
+  min-height: 0;
+}
+
+.section-heading {
+  justify-content: space-between;
+  border-bottom: 1px solid #d9dfdc;
+}
+
+.section-heading span {
+  color: #69736f;
+  font-size: 12px;
+}
+
+.list-content {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+li {
+  min-height: 75px;
+  padding: 13px 2px 12px;
+  border-bottom: 1px solid #e0e5e2;
+}
+
+.row-main {
+  justify-content: space-between;
+  min-width: 0;
+  gap: 14px;
+}
+
+.app-identity {
+  min-width: 0;
+}
+
+.app-identity strong,
+.app-identity span {
+  display: block;
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-identity strong {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.app-identity span,
+.usage-values span {
+  color: #707975;
+  font-size: 11px;
+  line-height: 17px;
+}
+
+.usage-values {
+  flex: 0 0 104px;
+  text-align: right;
+}
+
+.usage-values strong,
+.usage-values span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-values strong {
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.progress-track {
+  width: 100%;
+  height: 5px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #dfe5e2;
+}
+
+.progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #267d70;
+}
+
+.state-panel {
+  display: grid;
+  min-height: 210px;
+  padding: 48px 20px;
+  place-content: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.state-panel strong {
+  margin-bottom: 6px;
+  font-size: 15px;
+}
+
+.state-panel span {
+  max-width: 290px;
+  color: #69736f;
+  font-size: 12px;
+  line-height: 19px;
+}
+
+.state-panel button {
+  height: 32px;
+  margin-top: 16px;
+  padding: 0 16px;
+  border: 1px solid #176f64;
+  border-radius: 6px;
+  color: #ffffff;
+  background: #176f64;
+  cursor: pointer;
+}
+
+.error-state strong {
+  color: #a23e30;
+}
+
+@media (max-width: 400px) {
+  .dashboard {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .status-banner {
+    margin-right: -16px;
+    margin-left: -16px;
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .app-identity strong,
+  .app-identity span {
+    max-width: 190px;
+  }
+
+  .usage-values {
+    flex-basis: 92px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root,
+  .dashboard {
+    color: #eef2ef;
+    background: #1d211f;
+  }
+
+  h1 {
+    color: #f6f8f7;
+  }
+
+  .eyebrow,
+  .section-heading span,
+  .app-identity span,
+  .usage-values span,
+  .state-panel span,
+  .summary-label {
+    color: #aeb8b3;
+  }
+
+  .date-toolbar,
+  .summary,
+  .section-heading,
+  li {
+    border-color: #3a413e;
+  }
+
+  .icon-button,
+  .tracker-state {
+    color: #e5ebe7;
+  }
+
+  .icon-button:hover:not(:disabled),
+  .today-button:hover:not(:disabled) {
+    border-color: #52605a;
+    background: #303633;
+  }
+
+  .today-button {
+    border-color: #4b5551;
+    color: #e5ebe7;
+    background: #282d2b;
+  }
+
+  .progress-track {
+    background: #424b47;
+  }
+
+  .progress-track span {
+    background: #52aa9b;
+  }
+
+  .status-banner {
+    color: #f3d695;
+    background: #4b3b1e;
+  }
+
+  .error-banner {
+    color: #f6b4aa;
+    background: #4c2924;
+  }
+}
+

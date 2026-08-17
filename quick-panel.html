@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>小桌宠快捷面板</title>
+    <style>
+      html,
+      body,
+      #app {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: transparent;
+        font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+      }
+
+      #quick-panel-startup {
+        box-sizing: border-box;
+        width: 100%;
+        height: 100%;
+        padding: 16px;
+        border: 1px solid rgba(66, 79, 73, 0.32);
+        border-radius: 8px;
+        background: rgba(246, 248, 247, 0.96);
+        color: #18201d;
+      }
+
+      #quick-panel-startup p {
+        margin: 0;
+        color: #5d6863;
+        font-size: 13px;
+      }
+
+      #quick-panel-startup h1 {
+        margin: 2px 0 24px;
+        font-size: 20px;
+        line-height: 26px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="quick-panel-startup" aria-busy="true">
+        <p>小桌宠</p>
+        <h1>今天</h1>
+        <p>正在读取今日记录…</p>
+      </div>
+    </div>
+    <script type="module" src="/src/quick-panel.ts"></script>
+  </body>
+</html>
