@@ -55,9 +55,12 @@ use crate::{
     model::CommandError,
     panel_model::{PetAnchor, PhysicalRect as AnchorRect},
     pet_preferences::{load_size_percent, normalize_size_percent, save_size_percent},
-    pet_skin_preferences::{load_skin_id, save_skin_id},
+    pet_skin_preferences::{load_plugin_skin_id, load_skin_id, save_plugin_skin_id},
     pet_skins::{DEFAULT_SKIN_ID, SkinDefinition, decode_skin, skin_by_id},
 };
+
+#[cfg(test)]
+use crate::pet_skin_preferences::save_skin_id;
 
 const STATE_VERSION: u32 = 1;
 const BASE_DPI: u32 = 96;
@@ -459,14 +462,28 @@ fn decode_pet_asset() -> Result<RgbaImage, PetStartError> {
     decode_skin_asset(DEFAULT_SKIN_ID)
 }
 
-fn resolve_startup_skin(path: &Path) -> String {
+fn resolve_startup_skin(path: &Path, skin_available: impl Fn(&str) -> bool) -> String {
     let requested = load_skin_id(path);
-    if let Some(skin) = skin_by_id(&requested)
+    if skin_available(&requested)
+        && let Some(skin) = skin_by_id(&requested)
         && decode_skin_asset(skin.id).is_ok()
     {
         return skin.id.into();
     }
     DEFAULT_SKIN_ID.into()
+}
+
+fn resolve_startup_skin_with_provider(
+    path: &Path,
+    skin_available: impl Fn(&str) -> bool,
+    provider: &SkinProvider,
+) -> String {
+    let requested = load_plugin_skin_id(path, &skin_available);
+    if skin_available(&requested) && provider(&requested).is_ok() {
+        requested
+    } else {
+        DEFAULT_SKIN_ID.into()
+    }
 }
 
 fn decode_skin_asset(id: &str) -> Result<RgbaImage, PetStartError> {
@@ -757,9 +774,17 @@ pub struct PetSkinStatus {
 #[derive(Debug)]
 pub struct PetStartError(String);
 
+type SkinProvider = Arc<dyn Fn(&str) -> Result<RgbaImage, PetStartError> + Send + Sync>;
+
 impl fmt::Display for PetStartError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.0)
+    }
+}
+
+impl PetStartError {
+    pub fn new(message: impl Into<String>) -> Self {
+        Self(message.into())
     }
 }
 
@@ -777,9 +802,64 @@ impl PetHandle {
         F: Fn() + Send + Sync + 'static,
         A: Fn(PetAnchor) + Send + Sync + 'static,
     {
+        Self::start_with_skin_provider(
+            state_path,
+            preferences_path,
+            skin_preferences_path,
+            |_| true,
+            |id| decode_skin_asset(id),
+            on_click,
+            on_anchor,
+        )
+    }
+
+    pub fn start_with_skin_filter<F, A, S>(
+        state_path: PathBuf,
+        preferences_path: PathBuf,
+        skin_preferences_path: PathBuf,
+        skin_available: S,
+        on_click: F,
+        on_anchor: A,
+    ) -> Result<Self, PetStartError>
+    where
+        F: Fn() + Send + Sync + 'static,
+        A: Fn(PetAnchor) + Send + Sync + 'static,
+        S: Fn(&str) -> bool + Send + Sync + 'static,
+    {
+        Self::start_with_skin_provider(
+            state_path,
+            preferences_path,
+            skin_preferences_path,
+            skin_available,
+            |id| decode_skin_asset(id),
+            on_click,
+            on_anchor,
+        )
+    }
+
+    pub fn start_with_skin_provider<F, A, S, P>(
+        state_path: PathBuf,
+        preferences_path: PathBuf,
+        skin_preferences_path: PathBuf,
+        skin_available: S,
+        skin_provider: P,
+        on_click: F,
+        on_anchor: A,
+    ) -> Result<Self, PetStartError>
+    where
+        F: Fn() + Send + Sync + 'static,
+        A: Fn(PetAnchor) + Send + Sync + 'static,
+        S: Fn(&str) -> bool + Send + Sync + 'static,
+        P: Fn(&str) -> Result<RgbaImage, PetStartError> + Send + Sync + 'static,
+    {
+        let skin_provider: SkinProvider = Arc::new(skin_provider);
         let shared = Arc::new(PetShared::default());
         let size_percent = load_size_percent(&preferences_path);
-        let skin_id = resolve_startup_skin(&skin_preferences_path);
+        let skin_id = resolve_startup_skin_with_provider(
+            &skin_preferences_path,
+            &skin_available,
+            &skin_provider,
+        );
         *shared
             .skin_id
             .lock()
@@ -802,6 +882,7 @@ impl PetHandle {
                     state_path,
                     size_percent,
                     skin_id,
+                    skin_provider,
                     callback,
                     anchor_callback,
                     ready,
@@ -929,10 +1010,17 @@ impl PetHandle {
             .skin_operation
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let skin = skin_by_id(requested)
-            .ok_or_else(|| CommandError::new("pet_skin_unknown_id", "未找到可用的桌宠皮肤。"))?;
+        if requested.is_empty()
+            || requested.contains(['/', '\\', ':'])
+            || requested.starts_with("http")
+        {
+            return Err(CommandError::new(
+                "pet_skin_unknown_id",
+                "未找到可用的桌宠皮肤。",
+            ));
+        }
         let current = self.skin_id();
-        if current == skin.id {
+        if current == requested {
             return Ok(PetSkinUpdate {
                 skin_id: current,
                 saved: true,
@@ -947,7 +1035,7 @@ impl PetHandle {
                 .skin_request
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-            *request = Some(skin.id.into());
+            *request = Some(requested.into());
         }
         {
             let mut error = self
@@ -980,14 +1068,14 @@ impl PetHandle {
             return Err(CommandError::new(code, message));
         }
 
-        match save_skin_id(&self.skin_preferences_path, skin.id) {
+        match save_plugin_skin_id(&self.skin_preferences_path, requested) {
             Ok(()) => Ok(PetSkinUpdate {
-                skin_id: skin.id.into(),
+                skin_id: requested.into(),
                 saved: true,
                 message: None,
             }),
             Err(_) => Ok(PetSkinUpdate {
-                skin_id: skin.id.into(),
+                skin_id: requested.into(),
                 saved: false,
                 message: Some("皮肤已应用，但本地保存失败；重启后将恢复上次保存的皮肤。".into()),
             }),
@@ -1078,6 +1166,7 @@ fn post_to_shared(shared: &PetShared, message: u32) -> bool {
 struct NativeWindowState {
     skin_id: String,
     source: RgbaImage,
+    skin_provider: SkinProvider,
     frames: FrameSet,
     surface: GdiSurface,
     frame_index: usize,
@@ -1095,17 +1184,21 @@ impl NativeWindowState {
         dpi: u32,
         size_percent: u32,
         skin_id: String,
+        skin_provider: SkinProvider,
         state_path: PathBuf,
         shared: Arc<PetShared>,
         on_click: Arc<dyn Fn() + Send + Sync>,
         on_anchor: Arc<dyn Fn(PetAnchor) + Send + Sync>,
     ) -> Result<Self, PetStartError> {
-        let source = decode_skin_asset(&skin_id)?;
+        let source = skin_provider(&skin_id)?;
+        let source = trim_transparent(&source)
+            .ok_or_else(|| PetStartError(format!("{} has no visible pixels", skin_id)))?;
         let frames = FrameSet::build(&source, dpi, size_percent)?;
         let surface = GdiSurface::new(frames.size())?;
         Ok(Self {
             skin_id,
             source,
+            skin_provider,
             frames,
             surface,
             frame_index: 0,
@@ -1294,13 +1387,16 @@ impl NativeWindowState {
                 "未找到可用的桌宠皮肤。".into(),
             ));
         };
-        let skin = skin_by_id(&requested).ok_or_else(|| {
-            (
+        if requested.is_empty()
+            || requested.contains(['/', '\\', ':'])
+            || requested.starts_with("http")
+        {
+            return Err((
                 "pet_skin_unknown_id".into(),
                 "未找到可用的桌宠皮肤。".into(),
-            )
-        })?;
-        let source = decode_skin_asset_from_definition(skin).map_err(|error| {
+            ));
+        }
+        let source = (self.skin_provider)(&requested).map_err(|error| {
             (
                 "pet_skin_resource_failed".into(),
                 format!("皮肤资源加载失败，已保留原来的外观：{error}"),
@@ -1324,7 +1420,7 @@ impl NativeWindowState {
             ));
         }
         self.source = source;
-        self.skin_id = skin.id.into();
+        self.skin_id = requested;
         *self
             .shared
             .skin_id
@@ -1436,6 +1532,7 @@ fn pet_thread(
     state_path: PathBuf,
     size_percent: u32,
     skin_id: String,
+    skin_provider: SkinProvider,
     on_click: Arc<dyn Fn() + Send + Sync>,
     on_anchor: Arc<dyn Fn(PetAnchor) + Send + Sync>,
     ready: mpsc::SyncSender<Result<(), PetStartError>>,
@@ -1449,6 +1546,7 @@ fn pet_thread(
             state_path,
             size_percent,
             skin_id,
+            skin_provider,
             on_click,
             on_anchor,
             &ready,
@@ -1467,6 +1565,7 @@ unsafe fn initialize_and_run(
     state_path: PathBuf,
     size_percent: u32,
     skin_id: String,
+    skin_provider: SkinProvider,
     on_click: Arc<dyn Fn() + Send + Sync>,
     on_anchor: Arc<dyn Fn(PetAnchor) + Send + Sync>,
     ready: &mpsc::SyncSender<Result<(), PetStartError>>,
@@ -1476,6 +1575,7 @@ unsafe fn initialize_and_run(
         dpi,
         size_percent,
         skin_id,
+        skin_provider,
         state_path,
         shared.clone(),
         on_click,
@@ -1582,7 +1682,18 @@ unsafe extern "system" fn window_proc(
     lparam: LPARAM,
 ) -> LRESULT {
     std::panic::catch_unwind(|| unsafe { window_proc_inner(hwnd, message, wparam, lparam) })
-        .unwrap_or_else(|_| unsafe { DefWindowProcW(hwnd, message, wparam, lparam) })
+        .unwrap_or_else(|payload| {
+            let summary = payload
+                .downcast_ref::<&str>()
+                .copied()
+                .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+                .unwrap_or("Win32 window callback panicked");
+            crate::diagnostics::DiagnosticsManager::record_native_panic(
+                "win32-window-proc",
+                summary,
+            );
+            unsafe { DefWindowProcW(hwnd, message, wparam, lparam) }
+        })
 }
 
 unsafe fn window_proc_inner(hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
@@ -1938,15 +2049,15 @@ mod tests {
     fn startup_skin_recovery_is_deterministic_without_creating_a_window() {
         let directory = tempdir().unwrap();
         let path = directory.path().join("pet-skin-preferences.json");
-        assert_eq!(resolve_startup_skin(&path), DEFAULT_SKIN_ID);
+        assert_eq!(resolve_startup_skin(&path, |_| true), DEFAULT_SKIN_ID);
 
         save_skin_id(&path, "calico-cat").unwrap();
-        assert_eq!(resolve_startup_skin(&path), "calico-cat");
+        assert_eq!(resolve_startup_skin(&path, |_| true), "calico-cat");
 
         std::fs::write(&path, br#"{"version":99,"skin_id":"orange-dragon"}"#).unwrap();
-        assert_eq!(resolve_startup_skin(&path), DEFAULT_SKIN_ID);
+        assert_eq!(resolve_startup_skin(&path, |_| true), DEFAULT_SKIN_ID);
         std::fs::write(&path, br#"{"version":1,"skin_id":"unknown"}"#).unwrap();
-        assert_eq!(resolve_startup_skin(&path), DEFAULT_SKIN_ID);
+        assert_eq!(resolve_startup_skin(&path, |_| true), DEFAULT_SKIN_ID);
     }
 
     #[test]

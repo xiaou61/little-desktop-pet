@@ -35,8 +35,36 @@ pub fn load_skin_id(path: &Path) -> String {
     preferences.skin_id
 }
 
+pub fn load_plugin_skin_id(path: &Path, is_available: impl Fn(&str) -> bool) -> String {
+    let Ok(bytes) = std::fs::read(path) else {
+        return DEFAULT_SKIN_ID.into();
+    };
+    let Ok(preferences) = serde_json::from_slice::<PetSkinPreferences>(&bytes) else {
+        return DEFAULT_SKIN_ID.into();
+    };
+    if preferences.version != PREFERENCES_VERSION || !is_available(&preferences.skin_id) {
+        return DEFAULT_SKIN_ID.into();
+    }
+    preferences.skin_id
+}
+
 pub fn save_skin_id(path: &Path, skin_id: &str) -> io::Result<()> {
     save_skin_id_with(path, skin_id, move_file_replacing)
+}
+
+pub fn save_plugin_skin_id(path: &Path, skin_id: &str) -> io::Result<()> {
+    if skin_id.is_empty()
+        || skin_id.len() > 96
+        || !skin_id.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-' || byte == b'.'
+        })
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "unknown plugin skin ID",
+        ));
+    }
+    save_skin_id_unchecked(path, skin_id, move_file_replacing)
 }
 
 fn save_skin_id_with(
@@ -50,6 +78,14 @@ fn save_skin_id_with(
             "unknown pet skin ID",
         ));
     }
+    save_skin_id_unchecked(path, skin_id, replace)
+}
+
+fn save_skin_id_unchecked(
+    path: &Path,
+    skin_id: &str,
+    replace: impl FnOnce(&Path, &Path) -> io::Result<()>,
+) -> io::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }

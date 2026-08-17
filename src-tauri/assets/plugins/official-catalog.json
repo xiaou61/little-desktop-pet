@@ -1,0 +1,32 @@
+[
+  {
+    "id": "simple-cloud",
+    "displayName": "简洁云朵",
+    "version": "1.0.0",
+    "kind": "skin",
+    "thumbnail": "skins/simple-cloud-thumb.png",
+    "contributions": ["skins"],
+    "permissions": [],
+    "source": "builtIn"
+  },
+  {
+    "id": "orange-dragon",
+    "displayName": "橙色小龙",
+    "version": "1.0.0",
+    "kind": "skin",
+    "thumbnail": "skins/orange-dragon-thumb.png",
+    "contributions": ["skins"],
+    "permissions": [],
+    "source": "officialDirectory"
+  },
+  {
+    "id": "calico-cat",
+    "displayName": "三花猫",
+    "version": "1.0.0",
+    "kind": "skin",
+    "thumbnail": "skins/calico-cat-thumb.png",
+    "contributions": ["skins"],
+    "permissions": [],
+    "source": "officialDirectory"
+  }
+]

@@ -31,6 +31,7 @@ use windows::{
     core::{BOOL, w},
 };
 
+use crate::diagnostics::{DiagnosticLevel, DiagnosticsManager, EventBuilder, new_correlation_id};
 use crate::panel_model::{
     PanelEffect, PanelState, PendingFocusLoss, PetAnchor, PhysicalSize, place_panel,
 };
@@ -51,11 +52,21 @@ pub struct QuickPanelEnvironment {
     pub last_error: Option<String>,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuickPanelDiagnosticState {
+    pub open: bool,
+    pub generation: u64,
+    pub correlation_id: Option<String>,
+    pub last_error: Option<String>,
+}
+
 #[derive(Default)]
 struct RuntimeState {
     panel: PanelState,
     anchor: Option<PetAnchor>,
     corrected_generation: Option<u64>,
+    correlation_id: Option<String>,
     environment: QuickPanelEnvironment,
 }
 
@@ -66,18 +77,46 @@ pub struct QuickPanelController {
 
 impl QuickPanelController {
     pub fn toggle(&self, app: &AppHandle, anchor: PetAnchor) {
+        self.toggle_with_correlation(app, anchor, new_correlation_id());
+    }
+
+    pub fn toggle_with_correlation(
+        &self,
+        app: &AppHandle,
+        anchor: PetAnchor,
+        correlation_id: String,
+    ) {
         let effect = {
             let mut state = self.lock();
             state.anchor = Some(anchor);
+            state.correlation_id = Some(correlation_id.clone());
             state.panel.toggle()
         };
         match effect {
             PanelEffect::Open { generation } => {
+                record_panel_event(
+                    app,
+                    DiagnosticLevel::Info,
+                    "open-started",
+                    "快捷面板开始创建。",
+                    Some(&correlation_id),
+                    None,
+                );
                 if let Err(error) = self.create(app, anchor, generation) {
                     self.fail_generation(app, generation, &error);
                 }
             }
-            PanelEffect::Close { .. } => self.destroy_window(app),
+            PanelEffect::Close { .. } => {
+                record_panel_event(
+                    app,
+                    DiagnosticLevel::Info,
+                    "close-started",
+                    "快捷面板开始关闭。",
+                    Some(&correlation_id),
+                    None,
+                );
+                self.destroy_window(app);
+            }
             PanelEffect::None => {}
         }
     }
@@ -131,6 +170,20 @@ impl QuickPanelController {
         self.lock().environment.clone()
     }
 
+    pub fn diagnostic_state(&self) -> QuickPanelDiagnosticState {
+        let state = self.lock();
+        QuickPanelDiagnosticState {
+            open: state.panel.is_open(),
+            generation: state.panel.generation(),
+            correlation_id: state.correlation_id.clone(),
+            last_error: state.environment.last_error.clone(),
+        }
+    }
+
+    pub fn correlation_id(&self) -> Option<String> {
+        self.lock().correlation_id.clone()
+    }
+
     pub fn internal_action(&self) {
         let _ = self.lock().panel.internal_action();
     }
@@ -162,7 +215,10 @@ impl QuickPanelController {
         .skip_taskbar(true)
         .shadow(true)
         .transparent(true)
-        .devtools(false)
+        .devtools(
+            app.try_state::<DiagnosticsManager>()
+                .is_some_and(|manager| manager.config().developer_mode),
+        )
         .visible(false)
         .focused(true)
         .build()?;
@@ -201,6 +257,14 @@ impl QuickPanelController {
 
         window.show()?;
         window.set_focus()?;
+        record_panel_event(
+            app,
+            DiagnosticLevel::Info,
+            "open-succeeded",
+            "快捷面板已打开。",
+            self.correlation_id().as_deref(),
+            None,
+        );
         let ready_app = app.clone();
         thread::Builder::new()
             .name("quick-panel-ready-watchdog".into())
@@ -336,6 +400,14 @@ impl QuickPanelController {
             state.environment.last_error = Some(message.clone());
         }
         self.destroy_window(app);
+        record_panel_event(
+            &app,
+            DiagnosticLevel::Error,
+            "open-failed",
+            &message,
+            self.correlation_id().as_deref(),
+            Some("quick_panel_open_failed"),
+        );
         eprintln!("{message}");
     }
 
@@ -350,6 +422,28 @@ impl QuickPanelController {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
+}
+
+fn record_panel_event(
+    app: &AppHandle,
+    level: DiagnosticLevel,
+    event: &str,
+    message: &str,
+    correlation_id: Option<&str>,
+    error_code: Option<&str>,
+) {
+    let Some(diagnostics) = app.try_state::<DiagnosticsManager>() else {
+        return;
+    };
+    let mut builder =
+        EventBuilder::new(level, "quick-panel", event, message).window(QUICK_PANEL_LABEL);
+    if let Some(correlation_id) = correlation_id {
+        builder = builder.correlation(correlation_id);
+    }
+    if let Some(error_code) = error_code {
+        builder = builder.error_code(error_code);
+    }
+    diagnostics.record(builder.build());
 }
 
 fn panel_physical_size(dpi: u32) -> PhysicalSize {

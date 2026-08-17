@@ -1,0 +1,19 @@
+{
+  "manifestVersion": 1,
+  "id": "example-skin",
+  "version": "1.0.0",
+  "displayName": "示例云朵皮肤",
+  "kind": "skin",
+  "hostApi": "1",
+  "permissions": [],
+  "contributes": [
+    {
+      "id": "example-skin.skin",
+      "type": "skins",
+      "resource": "skins/pet.png",
+      "thumbnail": "skins/thumb.png",
+      "width": 200,
+      "height": 220
+    }
+  ]
+}

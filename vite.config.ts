@@ -10,7 +10,9 @@ export default defineConfig({
     rollupOptions: {
       input: {
         dashboard: fileURLToPath(new URL('./index.html', import.meta.url)),
-        quickPanel: fileURLToPath(new URL('./quick-panel.html', import.meta.url))
+        quickPanel: fileURLToPath(new URL('./quick-panel.html', import.meta.url)),
+        pluginManager: fileURLToPath(new URL('./plugin-manager.html', import.meta.url)),
+        diagnostics: fileURLToPath(new URL('./diagnostics.html', import.meta.url))
       }
     }
   },

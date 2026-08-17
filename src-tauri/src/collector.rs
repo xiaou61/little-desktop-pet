@@ -14,6 +14,7 @@ use chrono::NaiveDate;
 
 use crate::{
     accounting::AccountingState,
+    diagnostics::{DiagnosticLevel, DiagnosticsManager, EventBuilder},
     model::{CommandError, DailyUsageSummary, PendingAggregates, TrackerState, TrackerStatus},
     storage::{Repository, flush_pending},
     windows_adapter::WindowsAdapter,
@@ -64,10 +65,24 @@ impl std::error::Error for CollectorStartError {}
 
 impl CollectorHandle {
     pub fn start(database_path: PathBuf) -> Result<Self, CollectorStartError> {
+        Self::start_internal(database_path, None)
+    }
+
+    pub fn start_with_diagnostics(
+        database_path: PathBuf,
+        diagnostics: DiagnosticsManager,
+    ) -> Result<Self, CollectorStartError> {
+        Self::start_internal(database_path, Some(diagnostics))
+    }
+
+    fn start_internal(
+        database_path: PathBuf,
+        diagnostics: Option<DiagnosticsManager>,
+    ) -> Result<Self, CollectorStartError> {
         let (sender, receiver) = mpsc::channel();
         let join = thread::Builder::new()
             .name("daily-usage-collector".into())
-            .spawn(move || worker_loop(receiver, database_path))
+            .spawn(move || worker_loop(receiver, database_path, diagnostics))
             .map_err(|error| CollectorStartError(format!("failed to start collector: {error}")))?;
 
         Ok(Self {
@@ -153,10 +168,18 @@ struct WorkerState {
     accounting: AccountingState,
     pending: PendingAggregates,
     persistence_error: bool,
+    diagnostics: Option<DiagnosticsManager>,
 }
 
 impl WorkerState {
     fn open(database_path: PathBuf) -> Self {
+        Self::open_with_diagnostics(database_path, None)
+    }
+
+    fn open_with_diagnostics(
+        database_path: PathBuf,
+        diagnostics: Option<DiagnosticsManager>,
+    ) -> Self {
         let repository = Repository::open(&database_path).ok();
         let persistence_error = repository.is_none();
         Self {
@@ -165,6 +188,7 @@ impl WorkerState {
             accounting: AccountingState::default(),
             pending: PendingAggregates::default(),
             persistence_error,
+            diagnostics,
         }
     }
 
@@ -176,11 +200,31 @@ impl WorkerState {
             accounting: AccountingState::default(),
             pending: PendingAggregates::default(),
             persistence_error: false,
+            diagnostics: None,
         }
     }
 
     fn observe(&mut self, adapter: &mut WindowsAdapter) {
+        let previous = self.effective_state();
         self.accounting.observe(adapter.sample(), &mut self.pending);
+        let current = self.effective_state();
+        if previous != current
+            && let Some(diagnostics) = self.diagnostics.as_ref()
+        {
+            diagnostics.record(
+                EventBuilder::new(
+                    DiagnosticLevel::Info,
+                    "collector",
+                    "state-changed",
+                    format!("采集器状态从 {previous:?} 变为 {current:?}。"),
+                )
+                .context([(
+                    "status".into(),
+                    serde_json::Value::String(format!("{current:?}").to_ascii_lowercase()),
+                )])
+                .build(),
+            );
+        }
     }
 
     fn effective_state(&self) -> TrackerState {
@@ -240,8 +284,12 @@ impl WorkerState {
     }
 }
 
-fn worker_loop(receiver: Receiver<ControlMessage>, database_path: PathBuf) {
-    let mut worker = WorkerState::open(database_path);
+fn worker_loop(
+    receiver: Receiver<ControlMessage>,
+    database_path: PathBuf,
+    diagnostics: Option<DiagnosticsManager>,
+) {
+    let mut worker = WorkerState::open_with_diagnostics(database_path, diagnostics);
     let mut adapter = WindowsAdapter::new();
     let mut next_sample = Instant::now();
     let mut next_flush = Instant::now() + FLUSH_INTERVAL;

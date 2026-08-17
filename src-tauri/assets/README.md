@@ -2,6 +2,10 @@
 
 `skins/` 包含首发的三套内置资源，并通过 Rust `include_bytes!` 编译进可执行文件：
 
+首次启动只把 `simple-cloud` 登记为已安装并启用的皮肤。`orange-dragon` 和
+`calico-cat` 的资源仍随本地官方目录发布，但必须由用户在插件管理器中主动安装后才会出现在桌宠设置中。
+目录元数据位于 `plugins/official-catalog.json`，不依赖网络。
+
 | ID | 名称 | 主资源 | 缩略图 | 来源和授权 |
 | --- | --- | --- | --- | --- |
 | `simple-cloud` | 简洁云朵 | `skins/simple-cloud.png` | `skins/simple-cloud-thumb.png` | Cloudling 待机首帧，来自 `rullerzhou-afk/clawd-on-desk` 提交 `bca6a8d3f275df25d620367651502c6817a0c13b` 的 `assets/gif/cloudling-idle.gif`；项目所有者确认已取得权利人书面授权，可随本应用发布。 |

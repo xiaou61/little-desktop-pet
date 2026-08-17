@@ -2,6 +2,6 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "dashboard",
   "description": "Permissions for the local dashboard and on-demand pet quick panel",
-  "windows": ["dashboard", "quick-panel"],
-  "permissions": ["core:default"]
+  "windows": ["dashboard", "quick-panel", "diagnostics", "plugin-manager"],
+  "permissions": ["core:default", "log:default"]
 }

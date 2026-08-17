@@ -12,6 +12,7 @@
     fetchQuickPanelEnvironment,
     markQuickPanelInternalAction,
     notifyQuickPanelReady,
+    openPluginManager,
     openFullStatistics,
     previewPetSize
   } from './lib/api';
@@ -266,6 +267,12 @@
     });
   }
 
+  async function openPlugins(): Promise<void> {
+    await openPluginManager().catch(() => {
+      skinError = '插件管理界面暂时无法打开。';
+    });
+  }
+
   function handleKeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape') {
       event.preventDefault();
@@ -421,6 +428,9 @@
         onclick={() => commitSize(100)}
       >
         恢复默认大小
+      </button>
+      <button class="default-action" type="button" onclick={() => void openPlugins()}>
+        管理插件
       </button>
 
       <section class="skin-settings" aria-labelledby="pet-skin-title">
